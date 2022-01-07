@@ -1,0 +1,24 @@
+***** This will check when the last time a log was updated for an index, sourcetype, or host. It will then derive a health of a system based on healthy thresholds defined by system admins. To prevent "No results returned" messages, eval statement will force an integer to return if no results are found.
+
+```Run a tstats search to pull the latest event’s “_time” field matching on any index that is accessible by the user. The earliest event should go to a maximum of 24 hours in the past and group this data by the host name```
+| tstats latest(_time) as latest where index="web-proxy" earliest=-24h by index sourcetype host
+```Create a new field called “recent”. To determine what that field should be set to, perform a conditional check to see if the latest event time is greater (more recent) than the current time minus 30 seconds. If it is, set the recent variable to 1, if it is not, set it to 0. Also, take the latest time and convert it from epoch to the human readable format using the strftime function.```
+| eval recent = if(latest > relative_time(now(),"-30s"),1,0), realLatest = strftime(latest,"%c") 
+```Find "0" events```
+| where recent=0
+```Count and rename to "results"```
+| stats count as results by recent
+```Sums the results field and renames as "sub_results"```
+| stats sum(results) as sub_results
+```Evals as "recent" if the sub_results field shows "0", at which point it will return a 0 otherwise it will return the "sub_results" variable total```
+| eval recent = (if(sub_results==0, "0", sub_results))
+```Fillnull will change nulls to an integer```
+| fillnull
+```Show the "recent" field in the results```
+| fields recent
+```Runs the below query based on output above. If no results are returned above, this alt query will run and return an integer```
+| pendpipe 
+    [ stats count 
+    | eval recent=0 
+    | where count==0 
+    | fields - count]

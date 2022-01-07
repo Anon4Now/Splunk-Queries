@@ -1,0 +1,14 @@
+
+-----------------------------------------------COALESCE EXAMPLES--------------------------------------------------------------
+
+(index="XXXXXX" type="<VALUE>") OR (index="MFA" location.city!="XXXXX" AND location.city!="XXXXXXXX") earliest=-48h
+| rex field=account_uid "(?<email2>(?<=:)([a-z A-Z]+).([a-z A-Z]+))" 
+| rex field=account_uid "(?<saas>^([a-z A-Z 0-9]+))"
+| rex field=email "(?<email1>^([a-z A-Z]+).([a-z A-Z]+))"
+| fields email1, email2, saas, username, reason, result, category, certainty, type, location.city, location.country
+| eval User = coalesce(email1, email2) 
+| stats values(*) as * by User 
+| where email1 == email2
+| eval didUseMFA = if(like(reason, "%User proved%"), "Yes", "No")
+| fields + User, username, saas, category, certainty, type_vname, didUseMFA, reason, result, location.city, location.country
+| rename type AS "Type of Event", key AS "MFA Generated Code for Login", category AS "XXXXXX Defined Category", certainty AS "XXXXXX Defined Certainty", result AS "MFA Push", reason AS "MFA Event", location.city AS "City (MFA)", location.country AS "Country (MFA)", didUseMFA AS "Was MFA Used?"

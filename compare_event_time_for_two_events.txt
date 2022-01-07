@@ -1,0 +1,49 @@
+***********TAKE EVENT TIME AND ASSIGN TO EARLIEST AND COMPARE TO 2ND EVENT TO TEST*************
+
+
+
+index="<NAME>" field1="<FIELD_VAL>" field2="<FIELD_VAL>"
+
+```This subsearch will define the "earliest" time as the <VALUE> event time and then the "latest" time as earliest + 10 mins```
+    
+	[search index="<NAME>" field1="<FIELD_VAL>"
+    
+	| stats earliest(_time) AS earliest, latest(_time) AS latest
+    
+	| eval latest = earliest + 600
+    
+	| return earliest, latest]
+
+```This stats will create a variable with the timestamp of a success event within 10 min time```
+
+| stats latest(_time) as timeSuccess by field2
+
+```Join on field2 which is shared```
+
+| join field2
+
+```This subsearch will create a variable with a timestamp of a <VALUE> event within 10 min time```
+    
+	[ search index="<NAME>" field1="<FIELD_VAL>" field2="<FIELD_VAL>"
+    
+	| stats earliest(_time) as timeFail by field2]
+
+```Compare the 2 timestamp variables and round output val to int(non-floating)```
+
+| eval differenceInEventTimeinSecs=round(toNumber(timeSuccess-timeFail), 0)
+
+```Determine if difference in event times is less than 3 mins```
+
+| eval checkHowMuchTimePassed = if(differenceInEventTimeinSecs < 500, "Within Threshold", "Out of Threshold")
+
+```Convert epoch to iso time```
+
+| eval failAlert = strftime(timeFail, "%H:%M:%S")
+
+| eval successAlert = strftime(timeSuccess, "%H:%M:%S")
+
+```output in tabular view```
+
+| table email, <VALUE>Alert, successAlert, differenceInEventTimeinSecs, checkHowMuchTimePassed
+
+```| where (checkHowMuchTimePassed == 0)```
